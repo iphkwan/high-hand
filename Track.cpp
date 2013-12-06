@@ -5,6 +5,8 @@ using namespace std;
 using namespace cv;
 
 #define VIDEO_DEVICE_NO 1
+#define AREA_LIMIT 1000
+#define ARC_LENGTH_LIMIT 2000
 
 class Tracker {
 public:
@@ -46,6 +48,7 @@ public:
     void Display() {
         imshow("source", this->src_img);
         imshow("mask", this->mask);
+        imshow("trace", this->trace);
     }
 
     bool GenerateBackground() {
@@ -72,6 +75,23 @@ public:
         src_img.copyTo(src_img, mask);
     }
 
+    void DrawContours() {
+        contours.clear();
+        filter.clear();
+        structure.clear();
+
+        findContours(mask, contours, structure, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+
+        //filter
+        for (int i = 0; i < contours.size(); ++i) {
+            if (fabs(contourArea(Mat(contours[i]))) > AREA_LIMIT &&
+                fabs(arcLength(Mat(contours[i]), true)) < ARC_LENGTH_LIMIT)
+                filter.push_back(contours[i]);
+        }
+        src_img.copyTo(trace);
+        drawContours(trace, filter, -1, Scalar(255, 0, 0), 2);
+    }
+
     void Run() {
         if (InitSkinModel() == false)
             return;
@@ -81,6 +101,7 @@ public:
             return;
         while (GetNextFrame() == true) {
             SkinExtract();
+            DrawContours();
             Display();
             char key = (char)waitKey(1);
             if (key == 'q' || key == 'Q' || key == 27)
@@ -98,6 +119,12 @@ private:
 
     //background frame
     Mat background, pre_frame;
+
+    //trace of hand
+    vector< vector<Point> > contours;
+    vector< vector<Point> > filter;
+    vector<Vec4i> structure;
+    Mat trace;
 };
 
 
