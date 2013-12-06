@@ -23,8 +23,12 @@ Step.6. Track the center of hand's contour. (TODO)
 Pending...
 ```
 
-## ISSUE
+## Issue
 * The camera doesn't perform well. So it needs some Filtering (corrosion and expansion) or Noise Reduction algorithms.
+
+## Demo
+* The convex hull of hand
+![convex hull demo](https://github.com/iphkwan/high-hand/img/demo_0.png)
 
 ## Reference
 [OpenCV API Reference](http://docs.opencv.org/modules/refman.html)
