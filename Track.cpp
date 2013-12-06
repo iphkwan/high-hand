@@ -45,13 +45,42 @@ public:
     }
     void Display() {
         imshow("source", this->src_img);
+        imshow("mask", this->mask);
     }
+
+    bool GenerateBackground() {
+        if (GetNextFrame() == false)
+            return false;
+        src_img.copyTo(background);
+        src_img.copyTo(pre_frame);
+        return true;
+    }
+
+    void SkinExtract() {
+        src_img.convertTo(src_img, CV_8UC3, 255);
+        mask = Mat::zeros(src_img.size(), CV_8UC1);
+
+        Mat yuv;
+        cvtColor(src_img, yuv, CV_BGR2YCrCb);
+        for (int i = 0; i < src_img.cols; ++i) {
+            for (int j = 0; j < src_img.rows; ++j) {
+                Vec3b ycrcb = yuv.at<Vec3b>(j, i);
+                if (skin_model.at<uchar>(ycrcb[1], ycrcb[2]) > 0)
+                    mask.at<uchar>(j, i) = 255;
+            }
+        }
+        src_img.copyTo(src_img, mask);
+    }
+
     void Run() {
         if (InitSkinModel() == false)
             return;
         if (StartCamera() == false)
             return;
+        if (GenerateBackground() == false)
+            return;
         while (GetNextFrame() == true) {
+            SkinExtract();
             Display();
             char key = (char)waitKey(1);
             if (key == 'q' || key == 'Q' || key == 27)
@@ -66,6 +95,9 @@ private:
 
     //ellipse-skin-model
     Mat skin_model, mask;
+
+    //background frame
+    Mat background, pre_frame;
 };
 
 

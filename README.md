@@ -9,10 +9,10 @@ Hand tracker and gesture learner based on OpenCV.
 * A cpp/python demo of hand tracker.
 ```
 Step.0. Learn OpenCV. (FINISHED)
-Step.1. Read image from video device. (TODO)
+Step.1. Read image from video device. (FINISHED)
 Step.2. Record the background and set stdDEV threshold. (TODO)
 Step.3. Calculate the diff between current image and the recorded background. (TODO)
-Step.4.0 Extract the skin using YUV ellispe-skin-model. (TODO)
+Step.4.0 Extract the skin using YUV ellispe-skin-model. (FINISHED)
 Step.4.1 Remove the face using facedectect model of OpenCV. (OPTIONAL)
 Step.5. Draw the hand's contour and display it on the screen (TODO)
 Step.6. Track the center of hand's contour. (TODO)
