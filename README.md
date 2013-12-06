@@ -23,5 +23,8 @@ Step.6. Track the center of hand's contour. (TODO)
 Pending...
 ```
 
+## ISSUE
+* The camera doesn't perform well. So it needs some Filtering (corrosion and expansion) or Noise Reduction algorithms.
+
 ## Reference
 [OpenCV API Reference](http://docs.opencv.org/modules/refman.html)
