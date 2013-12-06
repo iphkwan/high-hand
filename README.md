@@ -28,7 +28,7 @@ Pending...
 
 ## Demo
 * The convex hull of hand
-![convex hull demo](https://github.com/iphkwan/high-hand/bolb/master/img/demo_0.png)
+![convex hull demo](https://github.com/iphkwan/high-hand/blob/master/img/demo_0.png)
 
 ## Reference
 [OpenCV API Reference](http://docs.opencv.org/modules/refman.html)
