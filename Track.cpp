@@ -5,8 +5,8 @@ using namespace std;
 using namespace cv;
 
 #define VIDEO_DEVICE_NO 1
-#define AREA_LIMIT 1000
-#define ARC_LENGTH_LIMIT 2000
+#define AREA_LIMIT 15000
+#define ARC_LENGTH_LIMIT 30000
 
 class Tracker {
 public:
@@ -41,6 +41,7 @@ public:
         if (!capture->read(this->src_img))
             return false;
 
+        flip(src_img, src_img, 1);
         src_img.convertTo(src_img, CV_32FC3);
         normalize(src_img, src_img, 1.0, 0.0, CV_MINMAX);
         return true;
@@ -83,10 +84,18 @@ public:
         findContours(mask, contours, structure, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 
         //filter
+        int max_area = 0, cur_area;
         for (int i = 0; i < contours.size(); ++i) {
-            if (fabs(contourArea(Mat(contours[i]))) > AREA_LIMIT &&
-                fabs(arcLength(Mat(contours[i]), true)) < ARC_LENGTH_LIMIT)
-                filter.push_back(contours[i]);
+            convexHull(contours[i], contours[i]);
+            cur_area = fabs(contourArea(Mat(contours[i])));
+            if (cur_area > AREA_LIMIT &&
+                fabs(arcLength(Mat(contours[i]), true)) < ARC_LENGTH_LIMIT) {
+                if (cur_area > max_area) {
+                    filter.clear();
+                    filter.push_back(contours[i]);
+                    max_area = cur_area;
+                }
+            }
         }
         src_img.copyTo(trace);
         drawContours(trace, filter, -1, Scalar(255, 0, 0), 2);
