@@ -5,13 +5,18 @@ using namespace std;
 using namespace cv;
 
 #define VIDEO_DEVICE_NO 1
-#define AREA_LIMIT 15000
+#define AREA_LIMIT 1500
 #define ARC_LENGTH_LIMIT 30000
+#define PACE_THRESHOLD 30
+#define START_DRAW 5
+
+#define DEBUG 0
 
 class Tracker {
 public:
     Tracker() {
         capture = NULL;
+        this->frame_of_null = 0;
     }
     ~Tracker() {
         if (capture != NULL)
@@ -76,7 +81,7 @@ public:
         src_img.copyTo(src_img, mask);
     }
 
-    void DrawContours() {
+    void DrawTrace() {
         contours.clear();
         filter.clear();
         structure.clear();
@@ -99,6 +104,54 @@ public:
         }
         src_img.copyTo(trace);
         drawContours(trace, filter, -1, Scalar(255, 0, 0), 2);
+
+        //draw convex center
+        if (!filter.empty()) {
+            float x = 0, y = 0;
+            for (int i = 0; i < filter[0].size(); i++) {
+                x += (float)filter[0][i].x;
+                y += (float)filter[0][i].y;
+#if DEBUG
+                cout << "(" << filter[0][i].x << ", " << filter[0][i].y << ") ";
+#endif
+            }
+#if DEBUG
+            cout << endl;
+#endif
+            x /= filter[0].size();
+            y /= filter[0].size();
+            circle(trace, Point(x, y), 10, Scalar(0, 0, 255), 5);
+
+            //draw longest finger
+            float px, py, d = 500, td;
+            for (int i = 0; i < filter[0].size(); i++) {
+                //td = sqrt((filter[0][i].x - x) * (filter[0][i].x - x) + (filter[0][i].y - y) * (filter[0][i].y - y));
+                td = filter[0][i].y;
+                if (td < d) {
+                    px = filter[0][i].x;
+                    py = filter[0][i].y;
+                    d = td;
+                }
+            }
+            line(trace, Point(x, y), Point(px, py), Scalar(0, 255, 0), 2);
+
+            //draw trace
+            vpace.push_back(Point(px, py));
+            frame_of_null = 0;
+            for (int i = START_DRAW; i < vpace.size(); i++) {
+                line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
+            }
+        } else {
+            frame_of_null++;
+            if (frame_of_null > PACE_THRESHOLD) {
+                frame_of_null = 0;
+                vpace.clear();
+            } else {
+                for (int i = START_DRAW; i < vpace.size(); i++) {
+                    line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
+                }
+            }
+        }
     }
 
     void Run() {
@@ -110,7 +163,7 @@ public:
             return;
         while (GetNextFrame() == true) {
             SkinExtract();
-            DrawContours();
+            DrawTrace();
             Display();
             char key = (char)waitKey(1);
             if (key == 'q' || key == 'Q' || key == 27)
@@ -134,6 +187,8 @@ private:
     vector< vector<Point> > filter;
     vector<Vec4i> structure;
     Mat trace;
+    vector<Point> vpace;
+    int frame_of_null;
 };
 
 
