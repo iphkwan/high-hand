@@ -7,10 +7,83 @@ using namespace cv;
 #define VIDEO_DEVICE_NO 1
 #define AREA_LIMIT 1500
 #define ARC_LENGTH_LIMIT 30000
+#define TRACE_LENGTH_LIMIT 200
 #define PACE_THRESHOLD 30
 #define START_DRAW 5
 
+#define EPS 1e-8
+
 #define DEBUG 0
+
+
+class Analyser {
+public:
+    Analyser() {
+        count = 0;
+    }
+    ~Analyser() {}
+    void clear() {
+        count = 0;
+        gesture.clear();
+    }
+    void judge(Point p) {
+        if (count == 0)
+            cur_point = p;
+        else {
+            if ((p.x - cur_point.x) * (p.x - cur_point.x) + (p.y - cur_point.y) * (p.y - cur_point.y)
+                    > TRACE_LENGTH_LIMIT * TRACE_LENGTH_LIMIT) {
+                if (fabs(p.x - cur_point.x) < EPS) {
+                    if (p.y < cur_point.y)
+                        gesture.push_back(NORTH);
+                    else
+                        gesture.push_back(SOUTH);
+                } else {
+                    float slope = (cur_point.y - p.y) / (cur_point.x - p.x);
+                    if (cur_point.y > p.y) {
+                        if (slope > 1 || slope < -1)
+                            gesture.push_back(NORTH);
+                        else if (cur_point.x > p.x)
+                            gesture.push_back(WEST);
+                        else
+                            gesture.push_back(EAST);
+                    } else {
+                        if (slope > 1 || slope < -1)
+                            gesture.push_back(SOUTH);
+                        else if (cur_point.x > p.x)
+                            gesture.push_back(WEST);
+                        else
+                            gesture.push_back(EAST);
+                    }
+                }
+                cur_point = p;
+            }
+        }
+        count++;
+    }
+    void printGesture() {
+        if (gesture.size() == 0) {
+            return;
+        }
+        for (int i = 0; i < gesture.size(); i++) {
+            if (gesture[i] == NORTH)
+                printf("UP ");
+            else if (gesture[i] == EAST)
+                printf("RIGHT ");
+            else if (gesture[i] == SOUTH)
+                printf("DOWN ");
+            else
+                printf("LEFT ");
+        }
+        printf("\n");
+    }
+private:
+    //N = 0, E = 1, S = 2, W = 3
+    enum DIRECTION {NORTH, EAST, SOUTH, WEST};
+    vector <DIRECTION> gesture;
+    Point cur_point;
+    int count;
+};
+
 
 class Tracker {
 public:
@@ -136,16 +209,19 @@ public:
             line(trace, Point(x, y), Point(px, py), Scalar(0, 255, 0), 2);
 
             //draw trace
+            analyser.judge(Point(x, y));
             vpace.push_back(Point(px, py));
             frame_of_null = 0;
             for (int i = START_DRAW; i < vpace.size(); i++) {
                 line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
             }
+            analyser.printGesture();
         } else {
             frame_of_null++;
             if (frame_of_null > PACE_THRESHOLD) {
                 frame_of_null = 0;
                 vpace.clear();
+                analyser.clear();
             } else {
                 for (int i = START_DRAW; i < vpace.size(); i++) {
                     line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
@@ -189,9 +265,9 @@ private:
     Mat trace;
     vector<Point> vpace;
     int frame_of_null;
+
+    Analyser analyser;
 };
-
-
 
 
 int main() {
