@@ -7,7 +7,8 @@ using namespace cv;
 #define VIDEO_DEVICE_NO 1
 #define AREA_LIMIT 1500
 #define ARC_LENGTH_LIMIT 30000
-#define TRACE_LENGTH_LIMIT 200
+#define TRACE_LENGTH_LIMIT_LOW 100
+#define TRACE_LENGTH_LIMIT_HIGH 300
 #define PACE_THRESHOLD 30
 #define START_DRAW 5
 
@@ -30,8 +31,8 @@ public:
         if (count == 0)
             cur_point = p;
         else {
-            if ((p.x - cur_point.x) * (p.x - cur_point.x) + (p.y - cur_point.y) * (p.y - cur_point.y)
-                    > TRACE_LENGTH_LIMIT * TRACE_LENGTH_LIMIT) {
+            float d = (p.x - cur_point.x) * (p.x - cur_point.x) + (p.y - cur_point.y) * (p.y - cur_point.y);
+            if (d > TRACE_LENGTH_LIMIT_LOW * TRACE_LENGTH_LIMIT_LOW && d < TRACE_LENGTH_LIMIT_HIGH * TRACE_LENGTH_LIMIT_HIGH) {
                 if (fabs(p.x - cur_point.x) < EPS) {
                     if (p.y < cur_point.y)
                         gesture.push_back(NORTH);
@@ -59,6 +60,12 @@ public:
             }
         }
         count++;
+
+        if (gesture.size() > 1) {
+            int sz = gesture.size() - 1;
+            if (gesture[sz] == gesture[sz - 1])
+                gesture.pop_back();
+        }
     }
     void printGesture() {
         if (gesture.size() == 0) {
@@ -121,6 +128,7 @@ public:
 
         flip(src_img, src_img, 1);
         src_img.convertTo(src_img, CV_32FC3);
+        medianBlur(src_img, src_img, 5);
         normalize(src_img, src_img, 1.0, 0.0, CV_MINMAX);
         return true;
     }
@@ -193,9 +201,8 @@ public:
 #endif
             x /= filter[0].size();
             y /= filter[0].size();
-            circle(trace, Point(x, y), 10, Scalar(0, 0, 255), 5);
 
-            //draw longest finger
+            //find the longest finger
             float px, py, d = 500, td;
             for (int i = 0; i < filter[0].size(); i++) {
                 //td = sqrt((filter[0][i].x - x) * (filter[0][i].x - x) + (filter[0][i].y - y) * (filter[0][i].y - y));
@@ -206,6 +213,29 @@ public:
                     d = td;
                 }
             }
+
+            //judge whether (px, py) is the point we tracked in the last frame
+            if (!vpace.empty()) {
+                td = (vpace.back().x - px) * (vpace.back().x - px) + (vpace.back().y - py) * (vpace.back().y - py);
+                if (td > TRACE_LENGTH_LIMIT_LOW * TRACE_LENGTH_LIMIT_LOW) {
+                    frame_of_null++;
+                    if (frame_of_null > PACE_THRESHOLD) {
+                        frame_of_null = 0;
+                        vpace.clear();
+                        analyser.clear();
+                    } /*else {
+                        for (int i = START_DRAW; i < vpace.size(); i++) {
+                            line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
+                        }
+                    }*/
+                    return;
+                }
+            }
+
+            //draw the convex's center
+            circle(trace, Point(x, y), 10, Scalar(0, 0, 255), 5);
+
+            //draw the longest finger
             line(trace, Point(x, y), Point(px, py), Scalar(0, 255, 0), 2);
 
             //draw trace
