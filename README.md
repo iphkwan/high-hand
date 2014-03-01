@@ -35,5 +35,8 @@ Step.6. Track the center of hand's contour. (FINISHED)
 * The convex hull of hand
 ![convex hull demo](https://github.com/iphkwan/high-hand/blob/master/img/demo_0.png?raw=true)
 
+* Gesture recognition
+![gesture demo](https://github.com/iphkwan/high-hand/blob/master/img/demo_3.png?raw=true)
+
 ## Reference
 [OpenCV API Reference](http://docs.opencv.org/modules/refman.html)
