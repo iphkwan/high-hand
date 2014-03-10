@@ -73,13 +73,13 @@ public:
         }
         for (int i = 0; i < gesture.size(); i++) {
             if (gesture[i] == NORTH)
-                printf("UP ");
+                printf("↑ ");
             else if (gesture[i] == EAST)
-                printf("RIGHT ");
+                printf("→ ");
             else if (gesture[i] == SOUTH)
-                printf("DOWN ");
+                printf("↓ ");
             else
-                printf("LEFT ");
+                printf("← ");
         }
         printf("\n");
     }
@@ -150,6 +150,9 @@ public:
         src_img.convertTo(src_img, CV_8UC3, 255);
         mask = Mat::zeros(src_img.size(), CV_8UC1);
 
+        Mat element = getStructuringElement(MORPH_RECT, Size(3, 3), Point(1, 1));
+        erode(src_img, src_img, element);
+        dilate(src_img, src_img, element);
         Mat yuv;
         cvtColor(src_img, yuv, CV_BGR2YCrCb);
         for (int i = 0; i < src_img.cols; ++i) {
@@ -159,6 +162,11 @@ public:
                     mask.at<uchar>(j, i) = 255;
             }
         }
+
+        erode(mask, mask, element);
+        //erode(mask, mask, element);
+        //erode(mask, mask, element);
+        dilate(mask, mask, element);
         src_img.copyTo(src_img, mask);
     }
 
@@ -239,7 +247,7 @@ public:
             line(trace, Point(x, y), Point(px, py), Scalar(0, 255, 0), 2);
 
             //draw trace
-            analyser.judge(Point(x, y));
+            analyser.judge(Point(px, py));
             vpace.push_back(Point(px, py));
             frame_of_null = 0;
             for (int i = START_DRAW; i < vpace.size(); i++) {
