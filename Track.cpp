@@ -7,14 +7,14 @@ using namespace cv;
 #define VIDEO_DEVICE_NO 1
 #define AREA_LIMIT 1500
 #define ARC_LENGTH_LIMIT 30000
-#define TRACE_LENGTH_LIMIT_LOW 100
+#define TRACE_LENGTH_LIMIT_LOW 50
 #define TRACE_LENGTH_LIMIT_HIGH 300
 #define PACE_THRESHOLD 30
 #define START_DRAW 5
 
 #define EPS 1e-8
 
-#define DEBUG 0
+#define DEBUG 1
 
 
 class Analyser {
@@ -97,6 +97,7 @@ public:
     Tracker() {
         capture = NULL;
         this->frame_of_null = 0;
+        this->last_trace_distance = -1.0;
     }
     ~Tracker() {
         if (capture != NULL)
@@ -152,6 +153,7 @@ public:
 
         Mat element = getStructuringElement(MORPH_RECT, Size(3, 3), Point(1, 1));
         erode(src_img, src_img, element);
+        erode(src_img, src_img, element);
         dilate(src_img, src_img, element);
         Mat yuv;
         cvtColor(src_img, yuv, CV_BGR2YCrCb);
@@ -181,6 +183,16 @@ public:
         int max_area = 0, cur_area;
         for (int i = 0; i < contours.size(); ++i) {
             convexHull(contours[i], contours[i]);
+
+            //each points of the convex should not be located at the edge of frame
+            bool flag = true;
+            for (int j = 0; flag && j < contours[i].size(); j++) {
+                if (contours[i][j].x <= 5 || contours[i][j].y <= 5)
+                    flag = false;
+            }
+            if (!flag)
+                continue;
+
             cur_area = fabs(contourArea(Mat(contours[i])));
             if (cur_area > AREA_LIMIT &&
                 fabs(arcLength(Mat(contours[i]), true)) < ARC_LENGTH_LIMIT) {
@@ -225,12 +237,13 @@ public:
             //judge whether (px, py) is the point we tracked in the last frame
             if (!vpace.empty()) {
                 td = (vpace.back().x - px) * (vpace.back().x - px) + (vpace.back().y - py) * (vpace.back().y - py);
-                if (td > TRACE_LENGTH_LIMIT_LOW * TRACE_LENGTH_LIMIT_LOW) {
+                if (td > TRACE_LENGTH_LIMIT_LOW * TRACE_LENGTH_LIMIT_LOW || (last_trace_distance > 64 && td > 16 * last_trace_distance)) {
                     frame_of_null++;
                     if (frame_of_null > PACE_THRESHOLD) {
                         frame_of_null = 0;
                         vpace.clear();
                         analyser.clear();
+                        last_trace_distance = -1.0;
                     } /*else {
                         for (int i = START_DRAW; i < vpace.size(); i++) {
                             line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
@@ -238,6 +251,7 @@ public:
                     }*/
                     return;
                 }
+                last_trace_distance = td;
             }
 
             //draw the convex's center
@@ -250,8 +264,15 @@ public:
             analyser.judge(Point(px, py));
             vpace.push_back(Point(px, py));
             frame_of_null = 0;
-            for (int i = START_DRAW; i < vpace.size(); i++) {
-                line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
+            Point cur, nxt;
+            for (int i = START_DRAW; i < vpace.size() - 1; i++) {
+                if (i == START_DRAW)
+                    cur = vpace[i - 1];
+                nxt.x = (cur.x + vpace[i].x + vpace[i + 1].x) / 3.0;
+                nxt.y = (cur.y + vpace[i].y + vpace[i + 1].y) / 3.0;
+                //line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
+                line(trace, cur, nxt, Scalar(255, 255, 0), 2);
+                cur = nxt;
             }
             analyser.printGesture();
         } else {
@@ -260,6 +281,7 @@ public:
                 frame_of_null = 0;
                 vpace.clear();
                 analyser.clear();
+                last_trace_distance = -1.0;
             } else {
                 for (int i = START_DRAW; i < vpace.size(); i++) {
                     line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
@@ -303,7 +325,7 @@ private:
     Mat trace;
     vector<Point> vpace;
     int frame_of_null;
-
+    double last_trace_distance;
     Analyser analyser;
 };
 
