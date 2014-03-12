@@ -1,6 +1,9 @@
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
 #include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
 #include <time.h>
 using namespace std;
 using namespace cv;
@@ -13,9 +16,11 @@ using namespace cv;
 #define PACE_THRESHOLD 30
 #define START_DRAW 5
 
+#define GESTURE_PATH "./gestures.txt"
 #define EPS 1e-8
 
 #define DEBUG 0
+
 
 //Algorithm libs
 float SqrDis (Point &a, Point &b) {
@@ -48,8 +53,18 @@ class Analyser {
 public:
     Analyser() {
         count = 0;
+        readGesture();
     }
     ~Analyser() {}
+
+    void readGesture() {
+        g_map.clear();
+        string a, b;
+        ifstream fin(GESTURE_PATH);
+        while (fin >> a >> b)
+            g_map.push_back(pair<string, string>(a, b));
+        fin.close();
+    }
     void clear() {
         count = 0;
         gesture.clear();
@@ -111,6 +126,8 @@ public:
                 printf("← ");
         }
         printf("\n");
+        if (gesture.size() > 2 && gesture.size() < 7)
+            predictGesture();
     }
 private:
     //N = 0, E = 1, S = 2, W = 3
@@ -118,6 +135,45 @@ private:
     vector <DIRECTION> gesture;
     Point cur_point;
     int count;
+
+    vector< pair<string, string> > g_map;
+
+    int dp[16][16];
+    int editDistance (string &str) {
+        int len1 = gesture.size();
+        int len2 = str.length();
+        if (len1 == 0 || len2 == 0)
+            return len1 + len2;
+        for (int i = 0; i <= len1; i++)
+            dp[i][0] = i;
+        for (int i = 0; i <= len2; i++)
+            dp[0][i] = i;
+        for (int i = 0; i <= len1; i++) {
+            for (int j = 0; j <= len2; j++) {
+                dp[i + 1][j + 1] = dp[i][j] + ((int)gesture[i] + '0' == str[j] ? 0 : 1);
+                dp[i + 1][j + 1] = min(dp[i + 1][j + 1], dp[i][j + 1] + 1);
+                dp[i + 1][j + 1] = min(dp[i + 1][j + 1], dp[i + 1][j] + 1);
+            }
+        }
+        return dp[len1][len2];
+    }
+
+    void predictGesture() {
+        if (g_map.size() == 0 || gesture.size() == 0) {
+            printf("None input gesture.\n");
+            return;
+        }
+        int max_dis = 16, p = -1, tmp;
+        for (int i = 0; i < g_map.size(); i++) {
+            tmp = editDistance(g_map[i].first);
+            if (tmp < max_dis) {
+                p = i;
+                max_dis = tmp;
+            }
+        }
+        if (p != -1 && max_dis <= 1)
+            cout << "predictGesture: " << g_map[p].second << endl;
+    }
 };
 
 

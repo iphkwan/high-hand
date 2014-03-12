@@ -27,10 +27,11 @@ Step.6. Track the center of hand's contour. (FINISHED)
 4. Result analyse
 ```
 
-* Trace Recoginition (TODO)
+* Trace Recoginition
 ```
 0. Eight-direction Trace State Machine
 1. Hidden Markov Model (HMM)
+2. Use Edit Distance to fit the trace. (FINISHED)
 ```
 
 ## Issue
