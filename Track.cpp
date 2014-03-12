@@ -16,6 +16,32 @@ using namespace cv;
 
 #define DEBUG 1
 
+//Algorithm libs
+float SqrDis (Point &a, Point &b) {
+    return (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+}
+
+Point PolyCenter (vector<Point> &vt) {
+    Point ret(0.0, 0.0);
+#if DEBUG
+    cout << "Num of Points = " << vt.size() << endl;
+#endif
+    for (int i = 0; i < vt.size(); i++) {
+        ret.x += vt[i].x;
+        ret.y += vt[i].y;
+#if DEBUG
+        cout << vt[i] << " ";
+#endif
+    }
+#if DEBUG
+    cout << endl;
+#endif
+    if (vt.size() > 0) {
+        ret.x /= vt.size();
+        ret.y /= vt.size();
+    }
+    return ret;
+}
 
 class Analyser {
 public:
@@ -31,7 +57,8 @@ public:
         if (count == 0)
             cur_point = p;
         else {
-            float d = (p.x - cur_point.x) * (p.x - cur_point.x) + (p.y - cur_point.y) * (p.y - cur_point.y);
+            //float d = (p.x - cur_point.x) * (p.x - cur_point.x) + (p.y - cur_point.y) * (p.y - cur_point.y);
+            float d = SqrDis(p, cur_point);
             if (d > TRACE_LENGTH_LIMIT_LOW * TRACE_LENGTH_LIMIT_LOW && d < TRACE_LENGTH_LIMIT_HIGH * TRACE_LENGTH_LIMIT_HIGH) {
                 if (fabs(p.x - cur_point.x) < EPS) {
                     if (p.y < cur_point.y)
@@ -71,6 +98,7 @@ public:
         if (gesture.size() == 0) {
             return;
         }
+        printf("Gesture: ");
         for (int i = 0; i < gesture.size(); i++) {
             if (gesture[i] == NORTH)
                 printf("↑ ");
@@ -98,6 +126,7 @@ public:
         capture = NULL;
         this->frame_of_null = 0;
         this->last_trace_distance = -1.0;
+        this->last_center = Point(-1.0, -1.0);
     }
     ~Tracker() {
         if (capture != NULL)
@@ -132,6 +161,14 @@ public:
         medianBlur(src_img, src_img, 5);
         normalize(src_img, src_img, 1.0, 0.0, CV_MINMAX);
         return true;
+    }
+
+    void CleanTracking() {
+        frame_of_null = 0;
+        vpace.clear();
+        analyser.clear();
+        last_trace_distance = -1.0;
+        this->last_center = Point(-1.0, -1.0);
     }
     void Display() {
         imshow("source", this->src_img);
@@ -181,6 +218,7 @@ public:
 
         //filter
         int max_area = 0, cur_area;
+        Point cur_center, tmp_center;
         for (int i = 0; i < contours.size(); ++i) {
             convexHull(contours[i], contours[i]);
 
@@ -196,6 +234,23 @@ public:
             cur_area = fabs(contourArea(Mat(contours[i])));
             if (cur_area > AREA_LIMIT &&
                 fabs(arcLength(Mat(contours[i]), true)) < ARC_LENGTH_LIMIT) {
+
+                //find the most neighbor convex as hand
+                if (!vpace.empty()) {
+                    tmp_center = PolyCenter(contours[i]);
+#if DEBUG
+                    cout << "tmp center = " << tmp_center << endl << "cur center = " << cur_center << endl << "last center = " << last_center << endl;
+#endif
+                    if (i == 0 || SqrDis(cur_center, last_center) > SqrDis(tmp_center, last_center)) {
+                        cur_center.x = tmp_center.x;
+                        cur_center.y = tmp_center.y;
+                        filter.clear();
+                        filter.push_back(contours[i]);
+                    }
+                    continue;
+                }
+
+                //find the max convex as hand
                 if (cur_area > max_area) {
                     filter.clear();
                     filter.push_back(contours[i]);
@@ -209,7 +264,7 @@ public:
         //draw convex center
         if (!filter.empty()) {
             float x = 0, y = 0;
-            for (int i = 0; i < filter[0].size(); i++) {
+/*            for (int i = 0; i < filter[0].size(); i++) {
                 x += (float)filter[0][i].x;
                 y += (float)filter[0][i].y;
 #if DEBUG
@@ -221,6 +276,10 @@ public:
 #endif
             x /= filter[0].size();
             y /= filter[0].size();
+*/
+            cur_center = PolyCenter(filter[0]);
+            last_center = cur_center;
+            x = cur_center.x, y = cur_center.y;
 
             //find the longest finger
             float px, py, d = 500, td;
@@ -236,14 +295,13 @@ public:
 
             //judge whether (px, py) is the point we tracked in the last frame
             if (!vpace.empty()) {
-                td = (vpace.back().x - px) * (vpace.back().x - px) + (vpace.back().y - py) * (vpace.back().y - py);
+                //td = (vpace.back().x - px) * (vpace.back().x - px) + (vpace.back().y - py) * (vpace.back().y - py);
+                Point finger(px, py);
+                td = SqrDis(vpace.back(), finger);
                 if (td > TRACE_LENGTH_LIMIT_LOW * TRACE_LENGTH_LIMIT_LOW || (last_trace_distance > 64 && td > 16 * last_trace_distance)) {
                     frame_of_null++;
                     if (frame_of_null > PACE_THRESHOLD) {
-                        frame_of_null = 0;
-                        vpace.clear();
-                        analyser.clear();
-                        last_trace_distance = -1.0;
+                        CleanTracking();
                     } /*else {
                         for (int i = START_DRAW; i < vpace.size(); i++) {
                             line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
@@ -278,10 +336,7 @@ public:
         } else {
             frame_of_null++;
             if (frame_of_null > PACE_THRESHOLD) {
-                frame_of_null = 0;
-                vpace.clear();
-                analyser.clear();
-                last_trace_distance = -1.0;
+                CleanTracking();
             } else {
                 for (int i = START_DRAW; i < vpace.size(); i++) {
                     line(trace, vpace[i - 1], vpace[i], Scalar(255, 255, 0), 2);
@@ -326,7 +381,9 @@ private:
     vector<Point> vpace;
     int frame_of_null;
     double last_trace_distance;
+    Point last_center;
     Analyser analyser;
+
 };
 
 
