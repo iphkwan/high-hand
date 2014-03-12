@@ -1,10 +1,11 @@
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
 #include <iostream>
+#include <time.h>
 using namespace std;
 using namespace cv;
 
-#define VIDEO_DEVICE_NO 1
+#define VIDEO_DEVICE_NO 0
 #define AREA_LIMIT 1500
 #define ARC_LENGTH_LIMIT 30000
 #define TRACE_LENGTH_LIMIT_LOW 50
@@ -14,7 +15,7 @@ using namespace cv;
 
 #define EPS 1e-8
 
-#define DEBUG 1
+#define DEBUG 0
 
 //Algorithm libs
 float SqrDis (Point &a, Point &b) {
@@ -127,6 +128,7 @@ public:
         this->frame_of_null = 0;
         this->last_trace_distance = -1.0;
         this->last_center = Point(-1.0, -1.0);
+        this->start_tracking = true;
     }
     ~Tracker() {
         if (capture != NULL)
@@ -172,8 +174,10 @@ public:
     }
     void Display() {
         imshow("source", this->src_img);
-        imshow("mask", this->mask);
-        imshow("trace", this->trace);
+        if (this->start_tracking) {
+            imshow("mask", this->mask);
+            imshow("trace", this->trace);
+        }
     }
 
     bool GenerateBackground() {
@@ -352,13 +356,21 @@ public:
             return;
         if (GenerateBackground() == false)
             return;
+        double start, finish;
         while (GetNextFrame() == true) {
-            SkinExtract();
-            DrawTrace();
+            start = clock();
+            if (this->start_tracking == true) {
+                SkinExtract();
+                DrawTrace();
+            }
             Display();
+            finish = clock();
+            cout << "run time: " << ((finish - start) * 1.0 / (double)CLOCKS_PER_SEC) << "s" << endl;
             char key = (char)waitKey(1);
             if (key == 'q' || key == 'Q' || key == 27)
                 break;
+            if (key == 's' || key == 'S')
+                this->start_tracking = !this->start_tracking;
         }
         StopCamera();
         return;
@@ -384,6 +396,8 @@ private:
     Point last_center;
     Analyser analyser;
 
+    //control flag
+    bool start_tracking;
 };
 
 
