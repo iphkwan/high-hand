@@ -585,11 +585,11 @@ private:
     bool start_tracking;
 
     //Gauss BG Model
-    IplImage *pFrame, *pBkImg, *pFrImg;
-    IplImage tmpImage;
-    CvGaussBGModel *bg_model;
-    CvGaussBGStatModelParams params;
-    BackgroundSubtractorMOG mog;
+    //IplImage *pFrame, *pBkImg, *pFrImg;
+    //IplImage tmpImage;
+    //CvGaussBGModel *bg_model;
+    //CvGaussBGStatModelParams params;
+    BackgroundSubtractorMOG2 mog;
     Mat foreground;
 };
 
