@@ -1,25 +1,28 @@
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
+#include <opencv/cvaux.h>
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <queue>
 #include <string>
 #include <time.h>
 using namespace std;
 using namespace cv;
 
-#define VIDEO_DEVICE_NO 0
+#define VIDEO_DEVICE_NO 1
 #define AREA_LIMIT 1500
 #define ARC_LENGTH_LIMIT 30000
 #define TRACE_LENGTH_LIMIT_LOW 50
 #define TRACE_LENGTH_LIMIT_HIGH 300
 #define PACE_THRESHOLD 30
-#define START_DRAW 5
+#define START_DRAW 3
 
 #define GESTURE_PATH "./gestures.txt"
 #define EPS 1e-8
 
 #define DEBUG 0
+#define YUV_TEST 1
 
 
 //Algorithm libs
@@ -185,8 +188,25 @@ public:
         this->last_trace_distance = -1.0;
         this->last_center = Point(-1.0, -1.0);
         this->start_tracking = true;
+        //this->bitmap = NULL;
+
+        //Gauss BG Model init
+/*        pFrImg = pFrame = pBkImg = NULL;
+        bg_model = NULL;
+        params.win_size = 500;
+        params.bg_threshold = 0.7;
+        params.weight_init =  0.05;
+        params.variance_init = 30;
+        params.minArea = 15.f;
+        params.n_gauss = 5;
+        params.std_threshold = 2.5;
+        cout << "init succeed\n";
+*/
     }
     ~Tracker() {
+        //if (bitmap != NULL)
+        //    delete bitmap;
+        //bitmap = NULL;
         if (capture != NULL)
             capture->release();
     }
@@ -204,6 +224,9 @@ public:
         return false;
     }
     bool StopCamera() {
+        //if (bitmap != NULL)
+        //    delete bitmap;
+        //bitmap = NULL;
         if (capture != NULL) {
             capture->release();
             waitKey(1);
@@ -214,10 +237,20 @@ public:
         if (!capture->read(this->src_img))
             return false;
 
+        if (src_img.rows * src_img.cols > 240 * 320)
+            resize(this->src_img, this->src_img, Size(320, 240));
+        //if (this->bitmap == NULL)
+        //    this->bitmap = new bool[src_img.cols * src_img.rows];
+        //memset(bitmap, false, sizeof(bitmap));
+
         flip(src_img, src_img, 1);
         src_img.convertTo(src_img, CV_32FC3);
         medianBlur(src_img, src_img, 5);
-        normalize(src_img, src_img, 1.0, 0.0, CV_MINMAX);
+/*        cout << "convert\n";
+        tmpImage  = IplImage(src_img);
+        pFrame = &tmpImage;
+        cout << "convert succeed\n";
+*/        normalize(src_img, src_img, 1.0, 0.0, CV_MINMAX);
         return true;
     }
 
@@ -229,21 +262,94 @@ public:
         this->last_center = Point(-1.0, -1.0);
     }
     void Display() {
-        imshow("source", this->src_img);
+        //imshow("source", this->src_img);
         if (this->start_tracking) {
-            imshow("mask", this->mask);
+            //imshow("mask", this->mask);
             imshow("trace", this->trace);
         }
     }
 
-    bool GenerateBackground() {
+    bool ResetBackground() {
         if (GetNextFrame() == false)
             return false;
-        src_img.copyTo(background);
-        src_img.copyTo(pre_frame);
+        //src_img.copyTo(background);
+        cout << "reset background...";
+/*        if (pFrame)
+            delete pFrame;
+        if (pBkImg)
+            delete pBkImg;
+        if (pFrImg)
+            delete pFrImg;
+        if (bg_model)
+            delete bg_model;
+        //pFrame = Iplimage(src_img);
+        pBkImg = cvCreateImage(cvGetSize(pFrame), IPL_DEPTH_8U, 3);
+        pFrImg = cvCreateImage(cvGetSize(pFrame), IPL_DEPTH_8U, 1);
+        bg_model = (CvGaussBGModel *)cvCreateGaussianBGModel(pFrame, &params);
+*/
+        Mat yuv;
+        cvtColor(src_img, yuv, CV_BGR2YCrCb);
+        Mat mv[3];
+        split(yuv, mv);
+        foreground = mv[0];
+        cout << "succeed\n";
         return true;
     }
 
+    bool UpdateBackground(Mat &src) {
+        /*cvSmooth(pFrame, pFrame, CV_GAUSSIAN, 3, 0, 0, 0);
+        cvUpdateBGStatModel(pFrame, (CvBGStatModel *)bg_model, -0.00001);
+        cvCopy(bg_model->foreground, pFrImg, 0);
+        cvCopy(bg_model->background, pBkImg, 0);
+        cvErode(pFrImg, pFrImg, 0, 1);
+        cvDilate(pFrImg, pFrImg, 0, 3);
+        cvShowImage("pFrImg", pFrImg);*/
+        mog(src, foreground, 0.005);
+        threshold(foreground, foreground, 128, 255, THRESH_BINARY);
+        Mat element = getStructuringElement(MORPH_RECT, Size(3, 3), Point(1, 1));
+        for (int k = 0; k < 3; k++)
+            erode(foreground, foreground, element);
+        for (int k = 0; k < 10; k++)
+            dilate(foreground, foreground, element);
+        return true;
+    }
+
+    void BFS(int x, int y, Mat &yuv) {
+        //if (bitmap == NULL)
+        //    return;
+        int dx[4] = {-1, 0, 0, 1};
+        int dy[4] = {0, -1, 1, 0};
+        int tx, ty, nx, ny;
+        queue< pair<int, int> > q;
+        q.push(pair<int, int>(x, y));
+        //bitmap[x * src_img.cols + y] = true;
+        mask.at<uchar>(x, y) = 255;
+        int total = 0;
+        while (!q.empty()) {
+            tx = q.front().first;
+            ty = q.front().second;
+            q.pop();
+            for (int i = 0; i < 4; i++) {
+                nx = tx + dx[i];
+                ny = ty + dy[i];
+                //cout << "nx = " << nx << " ny = " << ny << endl;
+                //cout << mask.rows << " " << mask.cols << endl;
+                if (nx >= 0 && nx < src_img.rows && ny >= 0 && ny < src_img.cols
+                        //&& bitmap[nx * src_img.cols + ny] == false) {
+                        && mask.at<uchar>(nx, ny) == false) {
+                    Vec3b ycrcb = yuv.at<Vec3b>(nx, ny);
+                    if (skin_model.at<uchar>(ycrcb[1], ycrcb[2]) > 0) {
+                        mask.at<uchar>(nx, ny) = 255;
+                        q.push(pair<int, int>(nx, ny));
+                        total++;
+                    }
+                    //bitmap[nx * src_img.cols + ny] = true;
+                }
+            }
+        }
+        //cout << "x = " << x << ", y = " << y << " " << "total = " << total << " ";
+        //cout << "finish bfs\n";
+    }
     void SkinExtract() {
         src_img.convertTo(src_img, CV_8UC3, 255);
         mask = Mat::zeros(src_img.size(), CV_8UC1);
@@ -254,18 +360,37 @@ public:
         dilate(src_img, src_img, element);
         Mat yuv;
         cvtColor(src_img, yuv, CV_BGR2YCrCb);
+
+#if YUV_TEST
+        {
+            Mat mv[3];
+            split(yuv, mv);
+            //imshow("Y", mv[0]);
+            //imshow("Cr", mv[1]);
+            //imshow("Cb", mv[2]);
+            UpdateBackground(mv[0]);
+        }
+#endif
         for (int i = 0; i < src_img.cols; ++i) {
             for (int j = 0; j < src_img.rows; ++j) {
                 Vec3b ycrcb = yuv.at<Vec3b>(j, i);
-                if (skin_model.at<uchar>(ycrcb[1], ycrcb[2]) > 0)
-                    mask.at<uchar>(j, i) = 255;
+                //if (bitmap[j * src_img.cols + i] == false && skin_model.at<uchar>(ycrcb[1], ycrcb[2]) > 0
+                if (mask.at<uchar>(j, i) == 0 && skin_model.at<uchar>(ycrcb[1], ycrcb[2]) > 0
+                        && (int)foreground.at<uchar>(j, i) == 255) {
+                    //mask.at<uchar>(j, i) = 255;
+                    //cout << (int)foreground.at<uchar>(j, i) << endl;
+                    BFS(j, i, yuv);
+                }
             }
         }
 
-        erode(mask, mask, element);
         //erode(mask, mask, element);
-        //erode(mask, mask, element);
-        dilate(mask, mask, element);
+        //dilate(mask, mask, element);
+        //bitwise_and(foreground, mask, mask);
+        for (int k = 0; k < 3; k++)
+            dilate(mask, mask, element);
+        imshow("mask", mask);
+        imshow("foreground", foreground);
         src_img.copyTo(src_img, mask);
     }
 
@@ -410,7 +535,8 @@ public:
             return;
         if (StartCamera() == false)
             return;
-        if (GenerateBackground() == false)
+        cout << "StartCamera succeed\n";
+        if (ResetBackground() == false)
             return;
         double start, finish;
         while (GetNextFrame() == true) {
@@ -425,8 +551,13 @@ public:
             char key = (char)waitKey(1);
             if (key == 'q' || key == 'Q' || key == 27)
                 break;
-            if (key == 's' || key == 'S')
+            if (key == 'R' || key == 'r')
                 this->start_tracking = !this->start_tracking;
+            if (key == 'S' || key == 's') {
+                imwrite("./src.png", src_img);
+                imwrite("./foreground.png", foreground);
+                imwrite("./mask.png", mask);
+            }
         }
         StopCamera();
         return;
@@ -436,10 +567,8 @@ private:
     Mat src_img;
 
     //ellipse-skin-model
-    Mat skin_model, mask;
-
-    //background frame
-    Mat background, pre_frame;
+    Mat skin_model;
+    Mat mask;
 
     //trace of hand
     vector< vector<Point> > contours;
@@ -454,6 +583,14 @@ private:
 
     //control flag
     bool start_tracking;
+
+    //Gauss BG Model
+    IplImage *pFrame, *pBkImg, *pFrImg;
+    IplImage tmpImage;
+    CvGaussBGModel *bg_model;
+    CvGaussBGStatModelParams params;
+    BackgroundSubtractorMOG mog;
+    Mat foreground;
 };
 
 
