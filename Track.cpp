@@ -12,7 +12,7 @@ using namespace cv;
 
 #define VIDEO_DEVICE_NO 1
 #define AREA_LIMIT 1500
-#define ARC_LENGTH_LIMIT 30000
+#define ARC_LENGTH_LIMIT 3000
 #define TRACE_LENGTH_LIMIT_LOW 50
 #define TRACE_LENGTH_LIMIT_HIGH 300
 #define PACE_THRESHOLD 30
@@ -202,6 +202,15 @@ public:
         params.std_threshold = 2.5;
         cout << "init succeed\n";
 */
+        //set windows
+        cvNamedWindow("trace", CV_WINDOW_AUTOSIZE);
+        cvMoveWindow("trace", 450, 0);
+        cvNamedWindow("mask", CV_WINDOW_AUTOSIZE);
+        cvMoveWindow("mask", 450, 380);
+#if YUV_TEST
+        cvNamedWindow("YCbCr_mask", CV_WINDOW_AUTOSIZE);
+        cvMoveWindow("YCbCr_mask", 0, 380);
+#endif
     }
     ~Tracker() {
         //if (bitmap != NULL)
@@ -213,6 +222,7 @@ public:
     bool InitSkinModel() {
         this->skin_model = Mat::zeros(Size(256, 256), CV_8UC1);
         ellipse(this->skin_model, Point(113, 155.6), Size(23.4, 15.2), 43.0, 0.0, 360.0, Scalar(255, 255, 255), -1);
+        //ellipse(this->skin_model, Point(113, 155.6), Size(11.7, 7.6), 43.0, 0.0, 360.0, Scalar(255, 255, 255), -1);
         return true;
     }
     bool StartCamera() {
@@ -237,8 +247,9 @@ public:
         if (!capture->read(this->src_img))
             return false;
 
-        if (src_img.rows * src_img.cols > 240 * 320)
-            resize(this->src_img, this->src_img, Size(320, 240));
+//        if (src_img.rows * src_img.cols > 240 * 320)
+//            resize(this->src_img, this->src_img, Size(320, 240));
+            resize(this->src_img, this->src_img, Size(400, 320));
         //if (this->bitmap == NULL)
         //    this->bitmap = new bool[src_img.cols * src_img.rows];
         //memset(bitmap, false, sizeof(bitmap));
@@ -325,6 +336,13 @@ public:
         //bitmap[x * src_img.cols + y] = true;
         mask.at<uchar>(x, y) = 255;
         int total = 0;
+#if DEBUG
+        int cb_min, cb_max, cr_min, cr_max;
+        cb_min = cr_min = 255;
+        cb_max = cr_max = 0;
+#endif
+        int std_cb = yuv.at<Vec3b>(x, y)[1];
+        int std_cr = yuv.at<Vec3b>(x, y)[2];
         while (!q.empty()) {
             tx = q.front().first;
             ty = q.front().second;
@@ -338,7 +356,15 @@ public:
                         //&& bitmap[nx * src_img.cols + ny] == false) {
                         && mask.at<uchar>(nx, ny) == false) {
                     Vec3b ycrcb = yuv.at<Vec3b>(nx, ny);
-                    if (skin_model.at<uchar>(ycrcb[1], ycrcb[2]) > 0) {
+#if DEBUG
+                    cb_min = min(cb_min, (int)ycrcb[1]);
+                    cb_max = max(cb_max, (int)ycrcb[1]);
+                    cr_min = min(cr_min, (int)ycrcb[2]);
+                    cr_max = max(cr_max, (int)ycrcb[2]);
+#endif
+                    if (skin_model.at<uchar>(ycrcb[1], ycrcb[2]) > 0 
+                            && ycrcb[1] < std_cb + 20 && std_cb - 20 < ycrcb[1] 
+                            && ycrcb[2] < std_cr + 20 && std_cr - 20 < ycrcb[2]) {
                         mask.at<uchar>(nx, ny) = 255;
                         q.push(pair<int, int>(nx, ny));
                         total++;
@@ -347,6 +373,10 @@ public:
                 }
             }
         }
+#if DEBUG
+        if (total > 0)
+            printf("cr_min = %d, cr_max = %d, cb_min = %d, cb_max = %d\n", cr_min, cr_max, cb_min, cb_max);
+#endif
         //cout << "x = " << x << ", y = " << y << " " << "total = " << total << " ";
         //cout << "finish bfs\n";
     }
@@ -365,11 +395,24 @@ public:
         {
             Mat mv[3];
             split(yuv, mv);
+            //equalizeHist(mv[1], mv[1]);
+            //equalizeHist(mv[2], mv[2]);
+            //merge(mv, 3, yuv);
             //imshow("Y", mv[0]);
             //imshow("Cr", mv[1]);
             //imshow("Cb", mv[2]);
             UpdateBackground(mv[0]);
         }
+        for (int i = 0; i < src_img.cols; ++i) {
+            for (int j = 0; j < src_img.rows; ++j) {
+                Vec3b ycrcb = yuv.at<Vec3b>(j, i);
+                if (skin_model.at<uchar>(ycrcb[1], ycrcb[2]) > 0) {
+                    mask.at<uchar>(j, i) = 255;
+                }
+            }
+        }
+        imshow("YCbCr_mask", mask);
+        mask = Mat::zeros(src_img.size(), CV_8UC1);
 #endif
         for (int i = 0; i < src_img.cols; ++i) {
             for (int j = 0; j < src_img.rows; ++j) {
