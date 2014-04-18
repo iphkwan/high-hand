@@ -17,10 +17,11 @@ private:
     Mat trace;
 public:
     bool InitWindows();
-    void DisplayResult(string &result);
+    void DisplayResult(string result);
     void DisplayYCbCrMask(Mat &yuvMask);
+    void DisplayHandMask(Mat &handMask);
     void DisplayForeground(Mat &foreground);
-    void DisplayTrace(Mat &src, Point &handCenter, vector<Point> &trc, vector< vector<Point> > &filter);
+    void DisplayTrace(Mat &src, Point handCenter, Point handHotspot, vector<Point> trc, vector< vector<Point> > filter);
     void AddSource(Mat &src);
     void AddFinger(Point &handCenter, Point &handHotspot);
     void AddTrace(vector<Point> &trc);

@@ -13,7 +13,7 @@ bool ResultDisplay::InitWindows() {
     return true;
 }
 
-void ResultDisplay::DisplayResult(string &result) {
+void ResultDisplay::DisplayResult(string result) {
     cout << "Predict gesture: " << result << endl;
 }
 
@@ -25,14 +25,18 @@ void ResultDisplay::DisplayForeground(Mat &foreground) {
     imshow("foreground", foreground);
 }
 
+void ResultDisplay::DisplayHandMask(Mat &handMask) {
+    imshow("handMask", handMask);
+}
+
 void ResultDisplay::AddSource(Mat &src) {
     trace = src;
 }
 
 void ResultDisplay::AddFinger(Point &handCenter, Point &handHotspot) {
     line(trace, handCenter, handHotspot, Scalar(0, 255, 0), 2);
-    circle(trace, handCenter, 10, Scalar(0, 0, 255), 5);
-    circle(trace, handHotspot, 10, Scalar(0, 0, 255), 5);
+    circle(trace, handCenter, 3, Scalar(0, 0, 255), 3);
+    circle(trace, handHotspot, 3, Scalar(0, 0, 255), 3);
 }
 
 void ResultDisplay::AddTrace(vector<Point> &trc) {
@@ -53,10 +57,10 @@ void ResultDisplay::AddConvex(vector< vector<Point> > &convex) {
     return;
 }
 
-void ResultDisplay::DisplayTrace(Mat &src, Point &handCenter, vector<Point> &trc, vector< vector<Point> > &filter) {
+void ResultDisplay::DisplayTrace(Mat &src, Point handCenter, Point handHotspot, vector<Point> trc, vector< vector<Point> > filter) {
     AddSource(src);
     if(filter.size() > 0) {
-        AddFinger(handCenter, trc.back());
+        AddFinger(handCenter, handHotspot);
         AddTrace(trc);
         AddConvex(filter);
     }

@@ -18,6 +18,7 @@ public:
     bool ImgFilting(Mat &src);
     bool SkinExtract();
     Mat GetYUVMask();
+    Mat GetYUVSrc();
     bool ClearYUVMask();
 };
 

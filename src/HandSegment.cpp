@@ -21,8 +21,15 @@ Mat HandSegment::GetYUVMask() {
     return this->yuvMask;
 }
 
+Mat HandSegment::GetYUVSrc() {
+    return this->yuvImg;
+}
+
 bool HandSegment::ImgFilting(Mat &src) {
     erode(src, src, this->filterElement);
+    dilate(src, src, this->filterElement);
+    dilate(src, src, this->filterElement);
+    dilate(src, src, this->filterElement);
     dilate(src, src, this->filterElement);
     return true;
 }

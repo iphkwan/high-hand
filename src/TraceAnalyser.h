@@ -18,6 +18,7 @@ private:
     vector< pair<string, string> > gestureList;
     string dirStr;
     int SqrDis(Point &x, Point &y);
+    Point lastHotspot;
 public:
     bool InitGestureList(const char *filepath);
     bool AddCenter(Point handCenter);

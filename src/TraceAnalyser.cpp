@@ -76,8 +76,9 @@ int TraceAnalyser::CalEditDistance(string &tmpStr) {
 }
 
 string TraceAnalyser::PredictResult() {
-    if (gestureList.size() == 0 || dirStr.length() == 0)
-        return "";
+    if (gestureList.size() == 0 || dirStr.length() < 3 || dirStr.length() > 10)
+        //return "None";
+        return dirStr;
     int max_dis = 16, p = -1, tmp;
     for (int i = 0; i < gestureList.size(); i++) {
         tmp = this->CalEditDistance(gestureList[i].first);
@@ -86,9 +87,10 @@ string TraceAnalyser::PredictResult() {
             p = i;
         }
     }
-    if (p != -1 && max_dis <= 1)
-        return gestureList[p].second;
-    return "";
+    if (p != -1 && max_dis <= 3)
+        return gestureList[p].second + " " + dirStr;
+    //return "None";
+    return dirStr;
 }
 
 int TraceAnalyser::SqrDis(Point &x, Point &y) {
@@ -99,13 +101,21 @@ bool TraceAnalyser::AnalyseTrace(Point handCenter, Point handHotspot) {
     if (centerTrace.size() == 0) {
         centerTrace.push_back(handCenter);
         hotspotTrace.push_back(handHotspot);
+        lastHotspot = handHotspot;
         return true;
     }
-    int d = SqrDis(handHotspot, hotspotTrace.back());
-    if (d > 2500 && d < 90000) {
-        dirStr += this->JudgeDirection(hotspotTrace.back(), handHotspot);
+    int d = SqrDis(handHotspot, lastHotspot);
+    if (d > 100 && d < 90000) {
+        //dirStr += this->JudgeDirection(hotspotTrace.back(), handHotspot);
         centerTrace.push_back(handCenter);
         hotspotTrace.push_back(handHotspot);
+        if (d > 2500) {
+            char c = JudgeDirection(this->lastHotspot, handHotspot);
+            if (dirStr.length() == 0 || c != dirStr[ dirStr.length() - 1 ]) {
+                dirStr += c;
+                this->lastHotspot = handHotspot;
+            }
+        }
         return true;
     }
     return false;

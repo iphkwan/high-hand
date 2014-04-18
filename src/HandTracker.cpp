@@ -18,10 +18,16 @@ Point HandTracker::GetHandHotspot() {
     return handHotspot;
 }
 
-vector<Point> HandTracker::GetHandConvex() {
-    if (contours.size() > 0)
-        return contours[0];
-    return vector<Point>();
+//vector<Point> HandTracker::GetHandConvex() {
+vector< vector<Point> > HandTracker::GetHandConvex() {
+    //if (contours.size() > 0)
+    //    return contours[0];
+    //return vector<Point>();
+    return this->filter;
+}
+
+Mat HandTracker::GetHandMask() {
+    return this->handMask;
 }
 
 bool HandTracker::GMMGenerate(Mat &src) {
@@ -31,16 +37,22 @@ bool HandTracker::GMMGenerate(Mat &src) {
 }
 
 bool HandTracker::GMMUpdate(Mat &src) {
-    mog(src, foreground, 0.005);
+    Mat mv[3];
+    split(src, mv);
+    mog(mv[0], foreground, 0.005);
     threshold(foreground, foreground, 128, 255, THRESH_BINARY);
 
     //img filting
-    for (int k = 0; k < 3; k++)
+    for (int k = 0; k < 1; k++)
         erode(foreground, foreground, element);
-    for (int k = 0; k < 10; k++)
+    for (int k = 0; k < 5; k++)
         dilate(foreground, foreground, element);
 
     return true;
+}
+
+Mat HandTracker::GetForeground() {
+    return this->foreground;
 }
 
 void HandTracker::BFS(int x, int y, Mat &yuv) {
@@ -125,6 +137,7 @@ bool HandTracker::HandTracking(Mat &yuvMask, Mat &yuvSrc) {
 
         //find hotspot
         int td, d = 500;
+        handHotspot = filter[0][0];
         for (int i = 0; i < filter[0].size(); i++) {
             td = filter[0][i].y;
             if (td < d) {

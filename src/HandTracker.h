@@ -14,7 +14,7 @@ class HandTracker {
 private:
     Mat foreground, handMask, element;
     bool isTracking;
-    BackgroundSubtractorMOG mog;
+    BackgroundSubtractorMOG2 mog;
     vector< vector<Point> > contours, filter;
     vector<Vec4i> structure;
     Point handCenter, handHotspot;
@@ -26,7 +26,9 @@ public:
     bool HandTracking(Mat &yuvMask, Mat &yuvSrc);
     Point GetHandCenter();
     Point GetHandHotspot();
-    vector<Point> GetHandConvex();
+    vector< vector<Point> > GetHandConvex();
+    Mat GetForeground();
+    Mat GetHandMask();
     bool StartTracker();
     bool StopTracker();
 };
